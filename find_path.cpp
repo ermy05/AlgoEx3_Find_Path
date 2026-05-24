@@ -1,13 +1,23 @@
 ﻿#include <iostream>
 #include <string>
 #include <unordered_map>
+#include <queue>
+
 #include <vector>
 #include <fstream>
 #include <sstream>
 #include <algorithm>
 #include "headers/Station.h"
+#include <list>
+#define INF 1000000
 
 using namespace std;
+
+struct PathResult {
+    std::unordered_map<std::string, int> distances;
+    std::unordered_map<std::string, Station*> previous;
+    bool pathFound;
+};
 
 using StationMap = std::unordered_map<std::string, Station*>;
 
@@ -21,6 +31,10 @@ bool loadNetworkFromFile(const std::string& filename, StationMap& stationMap);
 
 void freeMemory(StationMap& stationMap);
 
+PathResult dijkstra(const StationMap& graph, std::string startName, std::string targetName);
+std::vector<std::string> reconstructPath(const PathResult& result, const std::string& startName, const std::string& targetName);
+void findShortestPath(const std::unordered_map<std::string, Station*>& graph, const std::string& startName, const std::string& targetName);
+
 int main(int argc, char* argv[])
 {
     if (argc < 4) {
@@ -29,6 +43,7 @@ int main(int argc, char* argv[])
     }
 
     std::string dataFolder = DATA_DIR;
+    
 	std::string filePath = dataFolder + argv[1];
     
     std::string start = argv[2];
@@ -43,7 +58,8 @@ int main(int argc, char* argv[])
 
     if (stationMap.count(start)) {
         Station* karls = stationMap[start];
-        karls->printConnectedStations();
+        //karls->printConnectedStations();
+        findShortestPath(stationMap, start, finish);
     }
     else {
         std::cout << "Could not find start" << std::endl;
@@ -148,4 +164,129 @@ void freeMemory(StationMap& transitMap){
     for (auto const& [name, stationPtr] : transitMap) {
         delete stationPtr;
     }
+}
+
+PathResult dijkstra(
+    const StationMap& graph, 
+    std::string startName, 
+    std::string targetName
+) {
+    PathResult result;
+    result.pathFound = false;
+
+    auto startIterator = graph.find(startName);
+    auto targetIterator = graph.find(targetName);
+
+    if (startIterator == graph.end() || targetIterator == graph.end()) {
+        std::cout << "invalid start or target values" << std::endl;
+        return result;
+    }
+
+    Station* start = startIterator->second;
+    Station* target = targetIterator->second;
+
+    for (const auto& pair : graph) {
+        result.distances[pair.first] = INF;
+        result.previous[pair.first] = nullptr;
+    }
+    result.distances[startName] = 0;
+
+    using PQElement = std::pair<int, Station*>;
+    std::priority_queue<PQElement, std::vector<PQElement>, std::greater<PQElement>> pq;
+
+    pq.push({ 0, start });
+
+    std::unordered_map<std::string, bool> visited;
+
+    while (!pq.empty()) {
+        auto [currentDistance, currentStation] = pq.top();
+        pq.pop();
+
+        std::string currentName = currentStation->getName();
+        if (visited[currentName]) {
+            continue;
+        }
+        visited[currentName] = true;
+
+        if (currentStation == target) {
+            result.pathFound = true;
+            break;
+        }
+
+        for (Connection* connection : currentStation->getConnections()) {
+            Station* neighbor = currentStation->getConnectedStation(connection);
+            std::string neighborName = neighbor->getName();;
+
+            if (visited[neighborName]) {
+                continue;
+            }
+
+            int newDistance = currentDistance + connection->weight;
+
+            if (newDistance < result.distances[neighborName]) {
+                result.distances[neighborName] = newDistance;
+                result.previous[neighborName] = currentStation;
+                pq.push({ newDistance, neighbor });
+            }
+        }
+    }
+    return result;
+}
+
+std::vector<std::string> reconstructPath(
+    const PathResult& result,
+    const std::string& startName,
+    const std::string& targetName
+) {
+    std::vector<std::string> path;
+
+    if (!result.pathFound) {
+        return path;
+    }
+
+    std::string current = targetName;
+
+    while (current != startName) {
+        path.push_back(current);
+
+        Station* prev = result.previous.at(current);
+        if (prev == nullptr) {
+            return {};
+        }
+        current = prev->getName();
+    }
+
+    path.push_back(startName);
+
+    std::reverse(path.begin(), path.end());
+
+    return path;
+}
+
+void findShortestPath(
+    const std::unordered_map<std::string, Station*>& graph,
+    const std::string& startName,
+    const std::string& targetName
+) {
+    PathResult result = dijkstra(graph, startName, targetName);
+
+    if (!result.pathFound) {
+        std::cout << "No Path from " << startName << " to " << targetName << " found!" << std::endl;
+        return;
+    }
+
+    std::vector<std::string> path = reconstructPath(result, startName, targetName);
+    int totalDistance = result.distances[targetName];
+
+    std::cout << "Shortest Path from: " << startName << " to " << targetName << ":" << std::endl;
+    std::cout << "Distance: " << totalDistance << std::endl;
+    std::cout << "Path: ";
+
+    for (size_t i = 0; i < path.size(); i++) {
+        std::cout << path[i];
+        if (i < path.size() - 1) {
+            std::cout << " -> ";
+        }
+    }
+    std::cout << std::endl;
 }

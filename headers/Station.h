@@ -28,6 +28,8 @@ public:
 
     std::string getName() const;
     const std::vector<Connection*>& getConnections() const;
+    Station* getConnectedStation(Connection* conn) const;
+    Connection* getEdgeBetweenStations(Station* other) const;
 };
 
 #endif // STATION_H
