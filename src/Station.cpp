@@ -55,3 +55,20 @@ std::string Station::getName() const {
 const std::vector<Connection*>& Station::getConnections() const {
     return connections;
 }
+
+Station* Station::getConnectedStation(Connection* conn) const {
+    if (conn->stationA == this) {
+        return conn->stationB;
+    }
+    return conn->stationA;
+}
+
+Connection* Station::getEdgeBetweenStations(Station* other) const {
+    auto connections = this->getConnections();
+    for (auto edge : connections) {
+        if ((this == edge->stationA || this == edge->stationB) && (other == edge->stationA || other == edge->stationB)) {
+            return edge;
+        }
+    }
+    return nullptr;
+}
